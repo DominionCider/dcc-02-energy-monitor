@@ -1,0 +1,23 @@
+This sketch is for the arduino portion of the DC-002 build.
+
+It monitors an AC voltage reference and two current sensors
+and reports their values continuously over a serial line to
+be read by the ESP8266.
+
+Calibration can be done by attaching UART to the arduino
+and issuing a command in the form:
+
+    SET 127.2 1.7 57.21 82.32 100
+
+Where the parameters are:
+  * ac_calibration
+  * ac_phase_shift
+  * l1_ct_calibration
+  * l2_ct_calibration
+  * crossings
+
+A good way to do calibration is to put a known resistive load
+on the sensors, connect the UART, and collect many measurements.
+Put them into calibration.py to get the average values over
+that time, the relative error, and the new calibration constants
+to use.
