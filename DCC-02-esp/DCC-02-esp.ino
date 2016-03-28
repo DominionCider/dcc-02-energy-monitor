@@ -3,7 +3,7 @@
 //#define WIFI_SSID "yourwifi"
 //#define WIFI_PASSWORD "yourpassword"
 //#define HOSTNAME "data.example.com"
-//#define PATH "/db/<database>/series?u=<user>&p=<pass>"
+//#define PATH "/write?db=<database>&u=<user>&p=<pass>"
 #include "credentials.h"
 
 #define PORT 8086
@@ -68,8 +68,8 @@ int readTemperature(byte a[8], float *temp) {
 
 
 #define NTOKENS (6)
-float realPower, apparentPower, Vrms, Irms, powerFactor;
-int powerSamples;
+float l1_realPower, l1_apparentPower, l1_Vrms, l1_Irms, l1_powerFactor, l2_realPower, l2_apparentPower, l2_Vrms, l2_Irms, l2_powerFactor;
+int l1_powerSamples, l2_powerSamples;
 void handle_serial_line(char * line) {
   if (line[0] != 'L') {
     Serial.print("Unknown input: ");
@@ -95,12 +95,21 @@ void handle_serial_line(char * line) {
   }
   Serial.println();
 
-  realPower += atof(token[1]);
-  apparentPower += atof(token[2]);
-  Vrms += atof(token[3]);
-  Irms += atof(token[4]);
-  powerFactor += atof(token[5]);
-  powerSamples++;
+  if (token[0][1] == '1') {
+    l1_realPower += atof(token[1]);
+    l1_apparentPower += atof(token[2]);
+    l1_Vrms += atof(token[3]);
+    l1_Irms += atof(token[4]);
+    l1_powerFactor += atof(token[5]);
+    l1_powerSamples++;
+  } else if (token[0][1] == '2') {
+    l2_realPower += atof(token[1]);
+    l2_apparentPower += atof(token[2]);
+    l2_Vrms += atof(token[3]);
+    l2_Irms += atof(token[4]);
+    l2_powerFactor += atof(token[5]);
+    l2_powerSamples++;
+  }
 }
 
 void setup() {
@@ -118,7 +127,7 @@ char ser_buffer[SER_BUFFER_LENGTH];
 int ser_buffer_index = 0;
 
 void loop() {
-  char fields[N_SENSORS+5][16];
+  char fields[N_SENSORS+10][16];
   
   // Instruct all ds18b20 devices to take a measurement
   ds.reset();
@@ -126,6 +135,19 @@ void loop() {
   ds.write(0x44, 1); // Start conversion
   delay(100);
 
+  l1_realPower = 0;
+  l2_realPower = 0;
+  l1_apparentPower = 0;
+  l2_apparentPower = 0;
+  l1_Vrms = 0;
+  l2_Vrms = 0;
+  l1_Irms = 0;
+  l2_Irms = 0;
+  l1_powerFactor = 0;
+  l2_powerFactor = 0;
+  l1_powerSamples = 0;
+  l2_powerSamples = 0;
+    
   // Accumulate serial input into our buffer
   while (Serial.available() > 0) {
     ser_buffer[ser_buffer_index] = Serial.read();
@@ -180,42 +202,57 @@ void loop() {
 
 
     // If there are powerSamples, divide the accumulators by the number of samples to report the average
-    if (powerSamples) {
-      dtostrf(realPower/powerSamples, 1, 3, fields[N_SENSORS]);
-      dtostrf(apparentPower/powerSamples, 1, 3, fields[N_SENSORS+1]);
-      dtostrf(Vrms/powerSamples, 1, 3, fields[N_SENSORS+2]);
-      dtostrf(Irms/powerSamples, 1, 3, fields[N_SENSORS+3]);
-      dtostrf(powerFactor/powerSamples, 1, 3, fields[N_SENSORS+4]);
+    if (l1_powerSamples) {
+      dtostrf(l1_realPower/l1_powerSamples, 1, 3, fields[N_SENSORS]);
+      dtostrf(l1_apparentPower/l1_powerSamples, 1, 3, fields[N_SENSORS+1]);
+      dtostrf(l1_Vrms/l1_powerSamples, 1, 3, fields[N_SENSORS+2]);
+      dtostrf(l1_Irms/l1_powerSamples, 1, 3, fields[N_SENSORS+3]);
+      dtostrf(l1_powerFactor/l1_powerSamples, 1, 3, fields[N_SENSORS+4]);
     } else {
       // No powerSamples, so report null for all power fields
       for (int i=N_SENSORS; i<N_SENSORS+5; i++) {
         strcpy(fields[i], "null");
       }
     }
+    if (l2_powerSamples) {
+      dtostrf(l2_realPower/l2_powerSamples, 1, 3, fields[N_SENSORS+5]);
+      dtostrf(l2_apparentPower/l2_powerSamples, 1, 3, fields[N_SENSORS+6]);
+      dtostrf(l2_Vrms/l2_powerSamples, 1, 3, fields[N_SENSORS+7]);
+      dtostrf(l2_Irms/l2_powerSamples, 1, 3, fields[N_SENSORS+8]);
+      dtostrf(l2_powerFactor/l2_powerSamples, 1, 3, fields[N_SENSORS+9]);
+    } else {
+      // No powerSamples, so report null for all power fields
+      for (int i=N_SENSORS+5; i<N_SENSORS+10; i++) {
+        strcpy(fields[i], "null");
+      }
+    }
     
-    realPower = 0;
-    apparentPower = 0;
-    Vrms = 0;
-    Irms = 0;
-    powerFactor = 0;
-    powerSamples = 0;
+    
 
     // Prepare JSON payload for InfluxDB
-    char body[256];
+    char body[512];
     os_sprintf(
       body,
-      "[{\"name\":\"dcc02\",\"columns\":[\"temp\", \"realPower\", \"apparentPower\", \"Vrms\", \"Irms\", \"powerFactor\", \"uptime\"],\"points\":[[%s, %s, %s, %s, %s, %s, %d]]}]",
+      "dcc02 temp=%s,l1_realPower=%s,l1_apparentPower=%s,l1_Vrms=%s,l1_Irms=%s,l1_powerFactor=%s,l2_realPower=%s,l2_apparentPower=%s,l2_Vrms=%s,l2_Irms=%s,l2_powerFactor=%s,uptime=%di",
       fields[0],
       fields[1],
       fields[2],
       fields[3],
       fields[4],
       fields[5],
+      fields[6],
+      fields[7],
+      fields[8],
+      fields[9],
+      fields[10],
       millis()
     );
+    Serial.print("Writing to ");
+    Serial.println(PATH);
     Serial.println(body);
     Serial.println(strlen(body));
-
+    
+    
     // Make HTTP POST Request to InfluxDB
     client.print("POST ");
     client.print(PATH);
@@ -228,18 +265,16 @@ void loop() {
     client.print("\r\n");
 
     client.print("User-Agent: ESP8266 Arduino\r\n");
-    client.print("Accept: */*\r\n");
-    client.print("Content-Type: application/json\r\n");
 
     client.print("Connection: close\r\n");
 
     client.print("Content-Length: ");
     client.print(strlen(body));
     client.print("\r\n");
-
+    
     client.print("\r\n");
     client.print(body);
-
+    
     for (int i=0; i<TIMEOUT; i+=100) {
       if (client.available()) {
         break;
@@ -247,7 +282,7 @@ void loop() {
       Serial.print(".");
       delay(100);
     }
-
+    
     while (client.available()) {
       Serial.println(client.readStringUntil('\r'));
     }
