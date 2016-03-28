@@ -1,5 +1,5 @@
 
-// Define these in the wifi_creds.hpp file
+// Define these in the credentials.hpp file
 //#define WIFI_SSID "yourwifi"
 //#define WIFI_PASSWORD "yourpassword"
 //#define HOSTNAME "data.example.com"
@@ -128,7 +128,7 @@ int ser_buffer_index = 0;
 
 void loop() {
   char fields[N_SENSORS+10][16];
-  
+
   // Instruct all ds18b20 devices to take a measurement
   ds.reset();
   ds.skip();
@@ -147,7 +147,7 @@ void loop() {
   l2_powerFactor = 0;
   l1_powerSamples = 0;
   l2_powerSamples = 0;
-    
+
   // Accumulate serial input into our buffer
   while (Serial.available() > 0) {
     ser_buffer[ser_buffer_index] = Serial.read();
@@ -164,7 +164,7 @@ void loop() {
 
   // ds18b20 need ~750ms to take measurement
   delay(700);
-  
+
 
   // Read each ds18b20 device individually
   float temp[N_SENSORS] = {0.0};
@@ -226,8 +226,8 @@ void loop() {
         strcpy(fields[i], "null");
       }
     }
-    
-    
+
+
 
     // Prepare JSON payload for InfluxDB
     char body[512];
@@ -251,8 +251,8 @@ void loop() {
     Serial.println(PATH);
     Serial.println(body);
     Serial.println(strlen(body));
-    
-    
+
+
     // Make HTTP POST Request to InfluxDB
     client.print("POST ");
     client.print(PATH);
@@ -271,10 +271,10 @@ void loop() {
     client.print("Content-Length: ");
     client.print(strlen(body));
     client.print("\r\n");
-    
+
     client.print("\r\n");
     client.print(body);
-    
+
     for (int i=0; i<TIMEOUT; i+=100) {
       if (client.available()) {
         break;
@@ -282,7 +282,7 @@ void loop() {
       Serial.print(".");
       delay(100);
     }
-    
+
     while (client.available()) {
       Serial.println(client.readStringUntil('\r'));
     }
