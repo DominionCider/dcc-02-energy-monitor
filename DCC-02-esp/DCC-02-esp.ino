@@ -211,8 +211,14 @@ void loop() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Wifi connected to " + WiFi.SSID() + " IP:" + WiFi.localIP().toString());
+    unsigned long start = millis();
     client.connect(INFLUX_HOSTNAME, INFLUX_PORT);
     postRequestAsync(sensorBody, client);
+    if (millis() - start > 500) {
+      Serial.println("Connection timeout. Rebooting.");
+      delay(500);
+      ESP.restart();
+    }
     digitalWrite(RED_LED_PIN, LOW);
   } else {
     Serial.println("Connecting to wifi...");
