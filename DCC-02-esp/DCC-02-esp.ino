@@ -148,12 +148,12 @@ void loop() {
     Serial.print(client.readStringUntil('\r'));
   }
 
-  digitalWrite(GREEN_LED_PIN, HIGH);
-
   // If we are NOT ready to do a sensor iteraction, return early
   if (millis() < lastUploadIteration + UPLOAD_FREQ) {
     return;
   }
+
+  digitalWrite(GREEN_LED_PIN, HIGH);
 
   // Read sensors
   float temp[N_SENSORS];
