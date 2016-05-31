@@ -42,6 +42,13 @@ void handle_serial_line(char * line) {
     return;
   }
 
+  // If another 'L' is on this line, return
+  for (int i = 1; line[i] != 0x00; i++) {
+    if (line[i] == 'L') {
+      return;
+    }
+  }
+
   // Change all space characters to NULL-terminators and assign pointers to each token
   // (Here be dragons)
   char * token[NTOKENS];
